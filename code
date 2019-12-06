@@ -13,7 +13,7 @@ displayOptions() {
 echo "Check available cars                 ==========> [A]" #M
 echo "Book a car                           ==========> [B]" #J+
 echo "Check rented cars                    ==========> [C]" #J+
-echo "Check out a car                      ==========> [D]" #J+ Add ins payment
+echo "Check out a car                      ==========> [D]" #J+
 echo "Car return                           ==========> [E]" #M
 echo "Add employee information             ==========> [F]" #J+
 echo "List all employees                   ==========> [G]" #J+
@@ -22,29 +22,57 @@ echo "Add customer information             ==========> [I]" #M
 echo "List all customers                   ==========> [J]" #M
 echo "Find a customer                      ==========> [K]" #M
 echo "Extra charge                         ==========> [L]" #J+
-echo "Search for a car                     ==========> [S]" #J
+echo "Invoice for last return              ==========> [O]" #M
+echo "Update  odometer                     ==========> [U]" #M 
 echo "To quit                              ==========> [Q]"
 echo
 }
 
+
 pickB()
 {
 # add constraint that you cannot book the same car for the same period
-# add payment info  
 
 echo
 echo  "Booking a car"
 echo   
+#user input
 read -p "Enter customer ID number > " customer_id
 read -p "Enter car ID number > " car_id
-read -p "Enter payment ID > " payment_id
+read -p "Enter credit card number > " creadit_card_number
+read -p "Enter credit card expiration year(YYYY) > " year
+read -p "Enter credit card expiration month(MM) > " month
+day="01"
+date=$year$month$day
 read -p "Starting date of rent (YYYY-MM-DD) > " date_out
 read -p "Date when the car should be returned (YYYY-MM-DD) > " return_date
+
+
+# add a new record into 
+psql $dbname << EOF
+ 
+INSERT INTO payment_tbl (credit_card_number, credit_card_exp_date, customer_id)
+VALUES  
+('$creadit_card_number', TO_DATE('$date', 'YYYYMMDD'), '$customer_id'); 
+EOF
+
+last_payment_id=$(psql -d ${dbname} -t -c "SELECT last_value from payment_tbl_payment_id_seq" )
+
+count=$(psql -d ${dbname} -t -c "SELECT count(*) FROM booking_tbl WHERE car_id = $car_id AND ((date_out < '$date_out'::date AND return_date > '$return_date'::date) OR (date_out < '$date_out'::date AND return_date < '$return_date'::date) OR (date_out > '$date_out'::date AND return_date < '$return_date'::date) OR(date_out > '$date_out'::date AND return_date > '$return_date'::date)) " )
+echo "Count = "$count
+
+while [[ $count -gt 0 ]]
+do
+echo "This car is already booked for these dates. Try to book another car!"
+read -p "Enter car ID number > " car_id
+count=$(psql -d ${dbname} -t -c "SELECT count(*) FROM booking_tbl WHERE car_id = $car_id AND ((date_out < '$date_out'::date AND return_date > '$return_date'::date) OR (date_out < '$date_out'::date AND return_date < '$return_date'::date) OR (date_out > '$date_out'::date AND return_date < '$return_date'::date) OR(date_out > '$date_out'::date AND return_date > '$return_date'::date)) " )
+done
+
 
 psql $dbname << EOF 
 INSERT INTO booking_tbl(customer_id, car_id, payment_id, date_out, return_date) 
 VALUES 
-('$customer_id', '$car_id', '$payment_id', '$date_out', '$return_date');
+('$customer_id', '$car_id', '$last_id', '$date_out', '$return_date');
 EOF
 
 last_id=$(psql -d ${dbname} -t -c "SELECT last_value from booking_tbl_booking_id_seq" )
@@ -63,7 +91,6 @@ AND b.payment_id = p.payment_id;
 EOF
 }
 
-
 #method to check rented cars
 pickC()
 {
@@ -78,6 +105,7 @@ ON c.car_id = b.car_id
 WHERE date_out <= '$date'::date AND return_date >= '$date'::date;
 EOF
 }
+
 
 # method to check out a car 
 # to calculate the total amount with extra charge
@@ -124,10 +152,35 @@ EOF
 }
 
 
+pickE()
+{
+#Car Return
 
 
+read -p "Enter your Employee ID:  " return_employee_id
+read -p "Enter the Car ID you are returning:  " return_car_id
+read -p "Enter the Customer ID:  " return_customer_id
+#odometer=$(psql -d ${dbname} -t -c "SELECT odometer from car_tbl where car_id = $return_car_id" )
+read -p "Enter the new milage:  " milage_in                     #Trigger Calculate miles total or if elif statement
 
+#while [[ $milage_in -le $odometer ]];
+#do 
+#echo "New mileage cannot be less than previous odometer reading."
+#
+#read -p "Enter the new milage:  " milage_in   
+#done
 
+read -p "How many gallons of gas did we add to fill:  " gallons_gas_filled
+read -p "How much did the gas cost per gallon:  " gas_price_per_gallon
+read -p "Do you have any notes for this rental?  " rental_notes
+echo "employeeID: " $return_employee_id  "returncarID: " $return_car_id  "customerID: " $return_customer_id  "Your milage in: " $milage_in
+echo "Gallons Filled by us:"  $gallons_gas_filled  "Price per gallon: " $gas_price_per_gallon  "Rental notes: " $rental_notes
+
+psql $dbname <<EOF
+INSERT INTO return_tbl(car_id, customer_id, employee_id, new_mileage, gas_refill, price_per_gallon, notes)
+VALUES ($return_car_id, $return_customer_id, $return_employee_id, $milage_in, $gallons_gas_filled, $gas_price_per_gallon, '$rental_notes');
+EOF
+}
 
 #function to add employee information 
 pickF()
@@ -166,8 +219,6 @@ WHERE employee_id = $last_id;
 EOF
  
 }
-
-
 
 #Julia Buniak
 #Function to list all employees 
@@ -208,11 +259,12 @@ DROP View  extra_charge_view;
 CREATE View  extra_charge_view AS
 SELECT r.return_id, c.first_name, c.last_name, car.make, e.description, e.charge
 FROM EXTRA_CHARGE_TBL e,  RETURN_TBL r, CAR_TBL car, CUSTOMER_TBL c, RETURN_EXTRA_CHARGE_TBL re 
-WHERE  re.return_id = $return_id
+WHERE re.return_id = $return_id
 AND  re.return_id = r.return_id
 AND  r.car_id = car.car_id
 AND r.customer_id = c.customer_id
 AND re.extra_charge_id = e.extra_charge_id;
+GRANT SELECT, INSERT, UPDATE, DELETE on extra_charge_view to mmims;
 SELECT * FROM extra_charge_view;
 EOF
 
@@ -220,19 +272,20 @@ EOF
 extra=$(psql -d ${dbname} -t -c "SELECT SUM(charge) FROM extra_charge_view")
 echo " Extra charge to be paid: $" $extra
 
-psql $dbname << EOF 
-UPDATE  return_tbl SET extra_charge = $extra where return_id = $return_id;
-#  calculate the total for return_tbl
+psql $dbname << EOF
+BEGIN;
+UPDATE return_tbl SET extra_charge = $extra where return_id = $return_id;
+UPDATE return_tbl SET total = $extra + (SELECT  gas_total  FROM return_tbl  WHERE return_id = $return_id) WHERE return_id = $return_id;  
+SELECT  * from car_tbl where car_id = get_car_id_last_id();
+COMMIT
 EOF
 }
-
-
 
 displayOptions
 echo 
 read -p "Enter appropriate option >  " reply
 while [[ $reply  != "Q" && $reply  != "q" ]] 
-do 
+do
 case $reply in
       A|a) pickA;;
       B|b) pickB;;
@@ -247,6 +300,8 @@ case $reply in
       K|k) pickK;; 
       L|l) pickL;;
       S|s) pickS;;
+      O|o) pickO;;
+      U|u) pickU;;
       Q|q) exit;;
       *) echo "Invalid choice!"; exit;;
  esac
