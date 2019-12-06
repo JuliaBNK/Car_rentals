@@ -125,6 +125,10 @@ EOF
 
 
 
+
+
+
+
 #function to add employee information 
 pickF()
 {
