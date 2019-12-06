@@ -1,0 +1,30 @@
+#Julia Buniak
+# function to find a car 
+#pickX(){
+#echo
+#echo  "Find a car"
+#echo
+
+#echo "Chose search criteria: "
+#echo "Search by make   =========> [M]"
+#echo "Search by rate   =========> [R]"
+#echo "Search by type   =========> [T]"
+#echo "To quit          =========> [Q]"
+#read -p "Enter appropriate option >  " reply
+#while [[ $reply  != "Q" && $reply  != "q" ]] 
+#do
+#case $reply in
+#      M|m) read -p "Enter the model > " model
+#           psql $dbname << EOF SELECT * FROM car_tbl where model = $model; EOF;;
+#      R|r) read -p "Enter the rate > " rate
+#           psql $dbname << EOF SELECT * FROM car_tbl where rate <= $rate; EOF;;
+#      T|t) read -p "Enter the type (Sedan, SUV, or Coupe) > "  type
+#           psql $dbname << EOF SELECT * FROM car_tbl where type = $type; EOF;;
+#      Q|q) exit;;
+#      *) echo "Invalid choice!"; exit;;
+#esac
+#echo "Now you can exit the menu (press Q for that) or pick another search option"
+#read -p "Enter appropriate option >  " reply
+#done
+ 
+#}
